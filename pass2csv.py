@@ -10,7 +10,7 @@ import gnupg
 
 class CSVExporter():
 
-    def __init__(self, kpx_format):
+    def __init__(self, kpx_format, bitwarden_format):
 
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
@@ -18,8 +18,9 @@ class CSVExporter():
         # Set to True to allow for alternate password csv to be created
         # See README for differences
         self.kpx_format = kpx_format
+        self.bitwarden_format = bitwarden_format
 
-        if self.kpx_format:
+        if self.kpx_format or self.bitwarden_format:
             # A list of possible fields (in order) that could be converted to login fields
             self.login_fields = ['login', 'user', 'username', 'email']
             # Set to True to extract url fields
@@ -28,6 +29,7 @@ class CSVExporter():
             self.exclude_rows = ['^---$', '^autotype ?: ?']
 
         self.logger.info("Using KPX format: %s", self.kpx_format)
+        self.logger.info("Using Bitwarden format: %s", self.bitwarden_format)
 
     def traverse(self, path):
 
@@ -100,15 +102,19 @@ class CSVExporter():
             # We are using the advanced format; try extracting user and url
             user, url, notes = self.getMetadata(notes)
             return [group, name, user, password, url, notes]
+        elif self.bitwarden_format:
+            # extract user and url, reorder and add defaults
+            user, url, notes = self.getMetadata(notes)
+            return [group.capitalize(), "0", "login", name, notes, "", url, user, password]
         else:
             # We are not using KPX format; just use notes
             return [group, name, password, notes]
 
 
-def main(kpx_format, gpgbinary, use_agent, pass_path):
+def main(kpx_format, bitwarden_format, gpgbinary, use_agent, pass_path):
     """Main script entrypoint."""
 
-    exporter = CSVExporter(kpx_format)
+    exporter = CSVExporter(kpx_format, bitwarden_format)
     gpg = gnupg.GPG(use_agent=use_agent, gpgbinary=gpgbinary)
     gpg.encoding = 'utf-8'
     csv_data = []
@@ -159,6 +165,13 @@ class OptionsParser(ArgumentParser):
             action='store_true',
             help="Use this option to format the CSV for KeePassXC",
             dest='kpx_format',
+        )
+
+        self.add_argument(
+            '-bw', '--bitwarden',
+            action='store_true',
+            help="Use this option to format the CSV for Bitwarden",
+            dest='bitwarden_format',
         )
 
 
